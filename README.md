@@ -2,7 +2,6 @@
 
 ## Setup Instructions
 #### 1. Clone repository
-git clone <repository-url>
 
 #### 2. Navigate to project
 cd CS4371-Group-Project-1
