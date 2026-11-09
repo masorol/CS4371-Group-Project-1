@@ -1,0 +1,6 @@
+services:
+  kafka:
+    image: apache/kafka:4.1.2
+    container_name: hn-kafka
+    ports:
+      - "9092:9092"

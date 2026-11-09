@@ -1,6 +1,17 @@
 venv/
 .venv/
+
 __pycache__/
 *.pyc
+.pytest_cache/
+
 .env
+
 data/*.jsonl
+data/*.json
+data/*.tmp
+
+logs/*.log
+
+.vscode/
+.idea/
