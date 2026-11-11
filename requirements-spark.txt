@@ -1,0 +1,6 @@
+pyspark==3.5.9
+pyarrow
+pandas
+datasets
+jupyterlab
+spacy

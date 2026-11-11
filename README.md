@@ -15,6 +15,31 @@ python -m venv .venv
 #### 5. Install dependencies
 pip install -r requirements.txt
 
+## Version Requirements
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| Python | 3.11 | Recommended for Spark components |
+| Java | 17 | Required for Person 2 and Person 4; not needed for the Kafka collector |
+| PySpark | 3.5.9 | |
+| Spark Kafka connector | `org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.9` | Loaded via `spark.jars.packages` or `--packages` |
+| Kafka | `apache/kafka:4.1.2` | Docker image from `docker-compose.yml` |
+| Docker Desktop | Not pinned | Required to run Kafka |
+| Elasticsearch, Logstash, Kibana | TBD | Person 3 |
+
+### Spark Setup
+
+Spark components (Person 2 and Person 4) also need the Spark dependencies:
+
+pip install -r requirements-spark.txt
+
+**Windows note:** Spark on Windows needs `winutils.exe` and `hadoop.dll`.
+
+1. Download the Hadoop 3.3.6 build of both files from the [cdarlint/winutils](https://github.com/cdarlint/winutils) GitHub repo.
+2. Place them in `C:\hadoop\bin`.
+3. Set the `HADOOP_HOME` environment variable to `C:\hadoop`.
+4. Add `C:\hadoop\bin` to `PATH`.
+
 ## Project Overview
 
 This project is split into two parts.
