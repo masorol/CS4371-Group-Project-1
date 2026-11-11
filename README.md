@@ -1,18 +1,23 @@
 # CS4371-Group-Project-1
 
 ## Setup Instructions
+
 #### 1. Clone repository
 
 #### 2. Navigate to project
+
 cd CS4371-Group-Project-1
 
 #### 3. Create virtual environment
+
 python -m venv .venv
 
 #### 4. Activate (Windows)
+
 .venv\Scripts\activate
 
 #### 5. Install dependencies
+
 pip install -r requirements.txt
 
 ## Version Requirements
@@ -115,25 +120,23 @@ Owns Part 2, which can begin independently using AG News.
 
 Kafka details set by Person 1:
 
-| Setting | Value |
-|---------|-------|
-| Topic | `hn_raw` |
-| Broker | `localhost:9092` |
-| Message format | JSON |
-| Message key | Hacker News item ID |
-| Record types | `story`, `comment` |
-
-**Note:** `hn_raw` is currently serving as `topic1` from the assignment. The team should confirm whether to rename it to `topic1` to match the assignment requirements.
+| Setting        | Value               |
+| -------------- | ------------------- |
+| Topic          | `topic1`            |
+| Broker         | `localhost:9092`    |
+| Message format | JSON                |
+| Message key    | Hacker News item ID |
+| Record types   | `story`, `comment`  |
 
 ### Message Fields
 
-| Field | Description |
-|-------|-------------|
-| `id` | Hacker News item ID |
-| `source` | Source of the message |
-| `type` | Record type: `story` or `comment` |
-| `author` | Author username |
-| `text` | Message text |
-| `timestamp` | Creation time, UTC ISO 8601 |
-| `url` | URL of the item |
-| `parent_id` | ID of the parent item |
+| Field       | Description                       |
+| ----------- | --------------------------------- |
+| `id`        | Hacker News item ID               |
+| `source`    | Source of the message             |
+| `type`      | Record type: `story` or `comment` |
+| `author`    | Author username                   |
+| `text`      | Message text                      |
+| `timestamp` | Creation time, UTC ISO 8601       |
+| `url`       | URL of the item                   |
+| `parent_id` | ID of the parent item             |
