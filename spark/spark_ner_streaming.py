@@ -16,7 +16,7 @@ from pyspark.sql.functions import col, explode, from_json, struct, to_json, trim
 from pyspark.sql.types import ArrayType, StringType, StructField, StructType
 
 
-# 1. Logging and configuration -------------------------------------------------
+# 1. Logging and configuration 
 logging.basicConfig(
     level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
     format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s",
@@ -43,7 +43,7 @@ log.info("spaCy model: %s | Entity labels: %s", SPACY_MODEL, sorted(ALLOWED_LABE
 log.info("Per-batch example records: %d | Logging: %s", SAMPLE_SIZE, logging.getLevelName(log.level))
 
 
-# 2. Input schema --------------------------------------------------------------
+# 2. Input schema
 hn_schema = StructType([
     StructField("id", StringType(), True),
     StructField("source", StringType(), True),
@@ -57,7 +57,7 @@ hn_schema = StructType([
 log.info("STEP 2/13: Input JSON schema defined: %s", hn_schema.fieldNames())
 
 
-# 3–4. spaCy model and extraction ----------------------------------------------
+# 3–4. spaCy model and extraction
 _nlp = None
 
 
@@ -100,14 +100,14 @@ ner_udf = udf(extract_entities, ArrayType(StringType()))
 log.info("STEP 4/13: NER UDF registered (will execute on Spark workers)")
 
 
-# 5. Start Spark ---------------------------------------------------------------
+# 5. Start Spark
 log.info("STEP 5/13: Creating SparkSession")
 spark = SparkSession.builder.appName("HackerNewsNamedEntityRecognition").getOrCreate()
 spark.sparkContext.setLogLevel("WARN")
 log.info("STEP 5/13: SparkSession ready | version=%s | master=%s", spark.version, spark.sparkContext.master)
 
 
-# 6. Kafka streaming source ----------------------------------------------------
+# 6. Kafka streaming source
 log.info("STEP 6/13: Configuring Kafka streaming source: %s/%s", KAFKA_BOOTSTRAP_SERVERS, INPUT_TOPIC)
 raw_stream = (
     spark.readStream.format("kafka")
@@ -119,7 +119,7 @@ raw_stream = (
 log.info("STEP 6/13: Kafka streaming source initialized (no records processed yet)")
 
 
-# 7. Parse JSON ----------------------------------------------------------------
+# 7. Parse JSON
 parsed_stream = (
     raw_stream.selectExpr(
         "CAST(key AS STRING) AS kafka_key",
@@ -132,7 +132,7 @@ parsed_stream = (
 log.info("STEP 7/13: JSON parsing transformation configured")
 
 
-# 8. Filter messages -----------------------------------------------------------
+# 8. Filter messages
 messages = parsed_stream.filter(
     col("text").isNotNull()
     & (trim(col("text")) != "")
@@ -142,22 +142,22 @@ messages = parsed_stream.filter(
 log.info("STEP 8/13: Filtering configured (nonempty text, excluding TK, story/comment only)")
 
 
-# 9. Apply spaCy NER -----------------------------------------------------------
+# 9. Apply spaCy NER
 entity_messages = messages.withColumn("entities", ner_udf(col("text")))
 log.info("STEP 9/13: spaCy NER UDF added to streaming transformation plan")
 
 
-# 10. Explode entity arrays ----------------------------------------------------
+# 10. Explode entity arrays
 entity_rows = entity_messages.select(explode(col("entities")).alias("entity"))
 log.info("STEP 10/13: Entity-array explosion configured")
 
 
-# 11. Stateful cumulative aggregation -----------------------------------------
+# 11. Stateful cumulative aggregation
 entity_counts = entity_rows.groupBy("entity").count()
 log.info("STEP 11/13: Stateful entity counts configured (cumulative across batches)")
 
 
-# 12. Write updated counts to Kafka --------------------------------------------
+# 12. Write updated counts to Kafka
 def write_to_kafka(batch_df, batch_id):
     """Publish updated cumulative counts; retry failures through Spark."""
     log.info("STEP 12/13: Micro-batch %s started", batch_id)
@@ -192,7 +192,7 @@ def write_to_kafka(batch_df, batch_id):
         batch_df.unpersist()
 
 
-# 13. Start and monitor the streaming query ------------------------------------
+# 13. Start and monitor the streaming query
 query = None
 try:
     log.info("STEP 13/13: Starting streaming query | outputMode=update | interval=%s", TRIGGER_INTERVAL)
