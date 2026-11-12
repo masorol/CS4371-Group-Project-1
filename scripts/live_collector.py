@@ -20,7 +20,7 @@ BOOTSTRAP_SERVERS = os.getenv(
     "localhost:9092"
 )
 
-TOPIC = os.getenv("KAFKA_TOPIC", "hn_raw")
+TOPIC = os.getenv("KAFKA_TOPIC", "topic1")
 
 POLL_SECONDS = int(
     os.getenv("HN_POLL_SECONDS", "15")

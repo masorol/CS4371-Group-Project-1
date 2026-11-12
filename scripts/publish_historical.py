@@ -12,7 +12,7 @@ BOOTSTRAP_SERVERS = os.getenv(
     "localhost:9092"
 )
 
-TOPIC = os.getenv("KAFKA_TOPIC", "hn_raw")
+TOPIC = os.getenv("KAFKA_TOPIC", "topic1")
 
 INPUT_FILE = "data/hn_historical.jsonl"
 
