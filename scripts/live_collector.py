@@ -1,164 +1,61 @@
 import os
-import json
 import time
-
+import argparse
 from dotenv import load_dotenv
-from kafka import KafkaProducer, future, future
 
-from hn_common import (
-    fetch_json,
-    get_item,
-    normalize_item,
-    read_jsonl,
-    append_jsonl
-)
+from hn_common import fetch_json, get_item, normalize_item, read_jsonl, append_jsonl, make_producer
 
 load_dotenv()
 
-BOOTSTRAP_SERVERS = os.getenv(
-    "KAFKA_BOOTSTRAP_SERVERS",
-    "localhost:9092"
-)
 
-TOPIC = os.getenv("KAFKA_TOPIC", "topic1")
+def main():
+    parser = argparse.ArgumentParser(description="Poll Hacker News and send new records to Kafka.")
+    parser.add_argument("--bootstrap-servers", default=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"))
+    parser.add_argument("--topic", default=os.getenv("KAFKA_TOPIC", "topic1"))
+    parser.add_argument("--poll-seconds", type=int, default=int(os.getenv("HN_POLL_SECONDS", "15")))
+    parser.add_argument("--output", default=os.getenv("HN_LIVE_OUTPUT", "data/hn_live.jsonl"))
+    parser.add_argument("--historical-input", default=os.getenv("HN_HISTORICAL_INPUT", "data/hn_historical.jsonl"))
+    args = parser.parse_args()
 
-POLL_SECONDS = int(
-    os.getenv("HN_POLL_SECONDS", "15")
-)
+    producer = make_producer(args.bootstrap_servers)
 
-LIVE_OUTPUT = "data/hn_live.jsonl"
+    seen_ids = set()
+    for file_path in [args.historical_input, args.output]:
+        for record in read_jsonl(file_path):
+            seen_ids.add(record["id"])
 
-STATE_FILE = "data/live_seen_ids.json"
-
-
-def create_producer():
-    return KafkaProducer(
-        bootstrap_servers=BOOTSTRAP_SERVERS,
-
-        value_serializer=lambda value: json.dumps(
-            value,
-            ensure_ascii=False
-        ).encode("utf-8"),
-
-        key_serializer=lambda key: key.encode("utf-8"),
-        acks="all",
-        retries=10,
-        linger_ms=10,
-        max_block_ms=30000
-    )
-
-
-def load_seen_ids():
-    seen = set()
-    historical = read_jsonl("data/hn_historical.jsonl")
-
-    for record in historical:
-        seen.add(str(record["id"]))
-
-    if os.path.exists(STATE_FILE):
-        with open(
-            STATE_FILE,
-            "r",
-            encoding="utf-8"
-        ) as file:
-            saved_ids = json.load(file)
-            seen.update(str(item_id) for item_id in saved_ids)
-    return seen
-
-
-def save_seen_ids(seen):
-    with open(
-        STATE_FILE,
-        "w",
-        encoding="utf-8"
-    ) as file:
-        json.dump(sorted(seen), file)
-
-
-def publish_record(producer, record):
-    future = producer.send(
-        TOPIC,
-        key=record["id"],
-        value=record
-    )
-    future.get(timeout=30)
-
-
-def run_live_collector():
-    print("Starting live Hacker News collector...")
-    print(f"Kafka broker: {BOOTSTRAP_SERVERS}")
-    print(f"Kafka topic: {TOPIC}")
-    print(f"Polling interval: {POLL_SECONDS} seconds")
-
-    producer = create_producer()
-    seen_ids = load_seen_ids()
-
-    print(f"Previously processed IDs: {len(seen_ids)}")
-    print("Press CTRL+C to stop.\n")
+    print("Live collector started. Press Ctrl+C to stop.")
 
     try:
         while True:
-            published_this_cycle = 0
+            updates = fetch_json("updates.json") or {}
+            new_stories = fetch_json("newstories.json") or []
+            candidate_ids = updates.get("items", []) + new_stories
 
-            try:
-                updates = fetch_json("updates.json") or {}
-                updated_ids = updates.get("items", [])
+            sent = 0
+            for item_id in dict.fromkeys(candidate_ids):
+                item_id = str(item_id)
+                if item_id in seen_ids:
+                    continue
+                seen_ids.add(item_id)
 
-                new_story_ids = fetch_json(
-                    "newstories.json"
-                ) or []
+                record = normalize_item(get_item(item_id))
+                if record is None:
+                    continue
 
-                candidate_ids = list(
-                    dict.fromkeys(updated_ids + new_story_ids)
-                )
+                producer.send(args.topic, key=record["id"], value=record)
+                append_jsonl(record, args.output)
+                sent += 1
 
-                for item_id in candidate_ids:
-                    item_id = str(item_id)
-
-                    if item_id in seen_ids:
-                        continue
-
-                    try:
-                        item = get_item(item_id)
-                        record = normalize_item(item)
-
-                        if not record:
-                            seen_ids.add(item_id)
-                            continue
-
-                        publish_record(producer, record)
-                        append_jsonl(record, LIVE_OUTPUT)
-                        seen_ids.add(item_id)
-                        published_this_cycle += 1
-
-                    except Exception as error:
-                        print(
-                            f"Could not process item "
-                            f"{item_id}: {error}"
-                        )
-
-                save_seen_ids(seen_ids)
-
-                print(
-                    f"Cycle complete | "
-                    f"Published: {published_this_cycle} | "
-                    f"Tracked IDs: {len(seen_ids)}"
-                )
-
-            except Exception as error:
-                print(f"Live collection error: {error}")
-
-            time.sleep(POLL_SECONDS)
+            producer.flush()
+            print(f"Sent {sent} new records")
+            time.sleep(args.poll_seconds)
 
     except KeyboardInterrupt:
-        print("\nStopping live collector...")
-
+        print("Stopped.")
     finally:
-        producer.flush()
         producer.close()
-        save_seen_ids(seen_ids)
-        print("Live collector stopped.")
 
 
 if __name__ == "__main__":
-    run_live_collector()
+    main()

@@ -1,80 +1,48 @@
+import os
+import argparse
 from collections import Counter
+from dotenv import load_dotenv
 
 from hn_common import read_jsonl
 
-FILE_PATH = "data/hn_historical.jsonl"
+load_dotenv()
 
-REQUIRED_FIELDS = [
-    "id",
-    "source",
-    "type",
-    "author",
-    "text",
-    "timestamp",
-    "url",
-    "parent_id"
-]
+REQUIRED_FIELDS = ["id", "source", "type", "author", "text", "timestamp", "url", "parent_id"]
 
 
-def validate_dataset():
-    records = read_jsonl(FILE_PATH)
+def main():
+    parser = argparse.ArgumentParser(description="Check a Hacker News JSONL file.")
+    parser.add_argument("--input", default=os.getenv("HN_HISTORICAL_INPUT", "data/hn_historical.jsonl"))
+    parser.add_argument("--minimum-records", type=int, default=1000)
+    args = parser.parse_args()
 
-    print("\nDATASET VALIDATION")
-    print("=" * 50)
-
-    print(f"Total records: {len(records)}")
-
-    if not records:
-        print("ERROR: Dataset is empty.")
-        return False
-
-    ids = [record["id"] for record in records]
-    duplicate_count = len(ids) - len(set(ids))
-    print(f"Duplicate IDs: {duplicate_count}")
-
-    type_counts = Counter(
-        record["type"] for record in records
-    )
-
-    print("\nRecord types:")
-    for record_type, count in type_counts.items():
-        print(f"{record_type}: {count}")
+    records = read_jsonl(args.input)
 
     missing_fields = 0
     empty_text = 0
-
     for record in records:
         for field in REQUIRED_FIELDS:
-
             if field not in record:
                 missing_fields += 1
-
-        if not record.get("text", "").strip():
+        if not str(record.get("text", "")).strip():
             empty_text += 1
 
-    print(f"\nMissing required fields: {missing_fields}")
-    print(f"Empty text records: {empty_text}")
+    duplicate_ids = len(records) - len({r.get("id") for r in records})
+    unique_texts = len({r.get("text") for r in records})
+    types = Counter(r.get("type") for r in records)
 
-    valid = (
-        duplicate_count == 0
-        and missing_fields == 0
-        and empty_text == 0
-    )
+    print(f"Total records: {len(records)}")
+    print(f"Missing fields: {missing_fields}")
+    print(f"Duplicate ids: {duplicate_ids}")
+    print(f"Empty text: {empty_text}")
+    print(f"Unique texts: {unique_texts}")
 
-    print("\nRESULT:")
+    if missing_fields or duplicate_ids or empty_text or unique_texts < args.minimum_records:
+        print("FAILED")
+        raise SystemExit(1)
 
-    if valid:
-        print("PASS: Dataset structure is valid.")
-    else:
-        print("FAIL: Dataset needs attention.")
-
-    if len(records) >= 1000:
-        print("PASS: At least 1,000 records collected.")
-    else:
-        print("WARNING: Fewer than 1,000 records.")
-
-    return valid
+    print("PASSED")
 
 
 if __name__ == "__main__":
-    validate_dataset()
+    main()
