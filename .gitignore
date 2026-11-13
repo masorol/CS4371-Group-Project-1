@@ -15,3 +15,9 @@ logs/*.log
 
 .vscode/
 .idea/
+data/*.parquet
+
+.ipynb_checkpoints/
+
+data/*.xlsx
+data/hn_manual_label_sample.csv
