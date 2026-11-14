@@ -33,7 +33,7 @@ services:
       retries: 10
 
   spark:
-    build: ./spark
+    build: ./spark-ner
     container_name: spark-ner
 
     depends_on:
@@ -41,7 +41,7 @@ services:
         condition: service_healthy
 
     volumes:
-      - ./spark:/app
+      - ./spark-ner:/app
       - spark_checkpoints:/checkpoints
 
     environment:
