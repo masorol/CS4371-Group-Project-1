@@ -1,126 +1,142 @@
 # CS4371-Group-Project-1
 
 ## Setup Instructions
-### 1. Clone repository
 
-### 2. Navigate to project
+#### 1. Clone repository
+
+#### 2. Navigate to project
+
 cd CS4371-Group-Project-1
 
-### 3. Create virtual environment
+#### 3. Create virtual environment
+
 python -m venv .venv
 
-### 4. Activate
-#### Windows
+#### 4. Activate (Windows)
+
 .venv\Scripts\activate
 
-#### Mac/Linux
-source .venv/bin/activate
+#### 5. Install dependencies
 
-### 5. Install dependencies
 pip install -r requirements.txt
 
-### 6. Download spaCy English language model
-python -m spacy download en_core_web_sm
+## Version Requirements
 
-### Note: change the Kafka bootstrap server depending on where the Spark application runs
-#### If running Spark inside a Docker container - use the Kafka service name and internal Docker port in spark_ner_streaming.py:
-KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092")
+| Component | Version | Notes |
+|-----------|---------|-------|
+| Python | 3.11 | Recommended for Spark components |
+| Java | 17 | Required for Person 2 and Person 4; not needed for the Kafka collector |
+| PySpark | 3.5.9 | |
+| Spark Kafka connector | `org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.9` | Loaded via `spark.jars.packages` or `--packages` |
+| Kafka | `apache/kafka:4.1.2` | Docker image from `docker-compose.yml` |
+| Docker Desktop | Not pinned | Required to run Kafka |
+| Elasticsearch, Logstash, Kibana | TBD | Person 3 |
 
-#### If running Spark outside Docker (directly on your local computer) - change the Kafka bootstrap server in spark_ner_streaming.py to:
-KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:29092")
+### Spark Setup
 
-## Steps to Run the Spark Application Inside a Docker Container (Recommended)
+Spark components (Person 2 and Person 4) also need the Spark dependencies:
 
-### Docker Commands
-docker --version
-docker compose version
+pip install -r requirements-spark.txt
 
-### Delete the container and remove everything for a Clean Run
-docker compose down
-docker compose down -v --remove-orphans
+**Windows note:** Spark on Windows needs `winutils.exe` and `hadoop.dll`.
 
-### Build the Spark image
-docker compose build --no-cache spark
+1. Download the Hadoop 3.3.6 build of both files from the [cdarlint/winutils](https://github.com/cdarlint/winutils) GitHub repo.
+2. Place them in `C:\hadoop\bin`.
+3. Set the `HADOOP_HOME` environment variable to `C:\hadoop`.
+4. Add `C:\hadoop\bin` to `PATH`.
 
-### Start Kafka
-docker compose up -d
+## Project Overview
 
-### Check Kafka is running
-docker compose ps
+This project is split into two parts.
 
-### To view its startup logs
-docker compose logs -f kafka
+### Part 1: Real-Time Named Entity Recognition
 
-### Create topic 1
-docker exec hn-kafka /opt/kafka/bin/kafka-topics.sh \
-  --create \
-  --topic topic1 \
-  --bootstrap-server localhost:9092 \
-  --partitions 3 \
-  --replication-factor 1
+A streaming pipeline that extracts and counts named entities from live text:
 
-### Create topic 2
-docker exec hn-kafka /opt/kafka/bin/kafka-topics.sh \
-  --create \
-  --topic topic2 \
-  --bootstrap-server localhost:9092 \
-  --partitions 3 \
-  --replication-factor 1
+- **Kafka** ingests real-time messages from the collector.
+- **PySpark Structured Streaming** consumes the messages and uses **spaCy** to extract named entities (people, organizations, locations), maintaining cumulative counts.
+- Updated entity counts are published back to Kafka, read by **Logstash**, indexed in **Elasticsearch**, and visualized in **Kibana**.
 
-### Verify the topic exists
-docker exec hn-kafka /opt/kafka/bin/kafka-topics.sh \
-  --list \
-  --bootstrap-server localhost:9092
+### Part 2: Text Classification
 
-### Start Spark
-docker compose up -d spark
+A **Spark MLlib** text classification pipeline trained on the **AG News** dataset, then applied to the messages collected in Part 1, both in batch and as a live streaming classification.
 
-### If we need to Build and Start the Spark container
-### docker compose up --build -d spark
+## Team Responsibilities
 
-### Open 2 more Terminals: one to Publish and another to Read the message
+### Person 1: Mia - Data Collection and Kafka
 
-### Test Kafka (by sending a message)
-#### Terminal 1 — Publish a message
-docker exec -it hn-kafka /opt/kafka/bin/kafka-console-producer.sh \
-  --topic topic1 \
-  --bootstrap-server localhost:9092
+Owns the input pipeline that both project parts depend on.
 
-### Example message
-{"id":"50428106","source":"hackernews","type":"story","author":"boninferizi","text":"An SEO page checker that shows its scoring and admits its limits.Microsoft, Tesla, Google, Apple","timestamp":"2026-11-09T16:49:19Z","url":"https://news.ycombinator.com/item?id=50428106","parent_id":null}
+- Set up Kafka and create `topic1` and `topic2`.
+- Select a real-time source, preferably Hacker News or Bluesky because neither requires an API key.
+- Write a Python collector that continuously retrieves text and publishes it to `topic1`.
+- Save messages to a local file as a backup for Part 2.
+- Verify at least 1,000 messages are collected.
+- Provide instructions for starting the producer and Kafka.
 
-### Read the message - open another Terminal window and run:
-#### Terminal 2 — Consume messages from topic1
-docker exec -it hn-kafka /opt/kafka/bin/kafka-console-consumer.sh \
-  --topic topic1 \
-  --from-beginning \
-  --bootstrap-server localhost:9092
+**Deliverable:** Working producer script, Kafka configuration and a dataset of at least 1,000 messages.
 
-### Check if Spark is running
-docker compose ps
+### Person 2: Anika - Spark Streaming and NER
 
-### To view its startup logs:
-docker compose logs -f spark
-docker compose logs -f spark | grep "hn-ner"
+Owns the core streaming analytics component.
 
-### Read the message - open another Terminal window and look at Topic 2:
-docker exec -it hn-kafka /opt/kafka/bin/kafka-console-consumer.sh \
-  --topic topic2 \
-  --from-beginning \
-  --bootstrap-server localhost:9092
+- Create a PySpark Structured Streaming application that consumes `topic1`.
+- Use spaCy to extract named entities such as people, organizations, and locations.
+- Clean entity names and maintain cumulative occurrence counts.
+- Configure triggers, output mode and checkpointing.
+- Publish entity-count updates to `topic2`.
+- Work with Person 4 to integrate the second streaming query into the application.
 
-### If the Spark application is working correctly, you should see named entity counts similar to:
-{"entity":"Microsoft","count":1}
-{"entity":"Tesla","count":1}
-{"entity":"Google","count":1}
-{"entity":"Apple","count":1}
+**Deliverable:** Functional PySpark streaming script producing accurate cumulative entity counts.
 
-#### The actual entities and counts depend on spaCy's recognition and previously processed messages.
-#### This confirms that the Spark application is consuming messages from topic1, processing named entities, and publishing results to topic2.
+### Person 3: Calantha - Elasticsearch, Logstash and Kibana
 
-### Delete the container
-docker compose down
+Owns Part 1 visualization and leads final evidence collection.
 
-### Delete the container and remove everything for a Clean Run
-docker compose down
-docker compose down -v --remove-orphans
+- Install and configure Elasticsearch, Logstash and Kibana.
+- Configure Logstash to consume messages from `topic2`.
+- Ensure updated cumulative counts replace previous counts instead of being summed.
+- Build a Kibana bar chart displaying the 10 most frequent named entities.
+- Capture dashboard screenshots at multiple intervals (ideally 15, 30, 45 and 60 minutes).
+- Write the Part 1 results interpretation and coordinate the report.
+
+**Deliverable:** Live dashboard, screenshots, configuration files and Part 1 results summary.
+
+### Person 4: Salamot - Machine Learning and Text Classification
+
+Owns Part 2, which can begin independently using AG News.
+
+- Load AG News and report the number of articles in each class.
+- Build the required MLlib pipeline: RegexTokenizer -> StopWordsRemover -> HashingTF/CountVectorizer -> IDF -> LogisticRegression.
+- Train and save the PipelineModel.
+- Load Person 1's collected messages and remove empty/duplicate records.
+- Predict labels, save probabilities and provide five examples per class.
+- Coordinate manual labeling of 50 randomly selected messages and calculate accuracy.
+- Implement live classification and running counts per topic.
+
+**Deliverable:** Trained and saved model, prediction files, evaluation results and live classification query.
+
+## Data Contract
+
+Kafka details set by Person 1:
+
+| Setting        | Value               |
+| -------------- | ------------------- |
+| Topic          | `topic1`            |
+| Broker         | `localhost:9092`    |
+| Message format | JSON                |
+| Message key    | Hacker News item ID |
+| Record types   | `story`, `comment`  |
+
+### Message Fields
+
+| Field       | Description                       |
+| ----------- | --------------------------------- |
+| `id`        | Hacker News item ID               |
+| `source`    | Source of the message             |
+| `type`      | Record type: `story` or `comment` |
+| `author`    | Author username                   |
+| `text`      | Message text                      |
+| `timestamp` | Creation time, UTC ISO 8601       |
+| `url`       | URL of the item                   |
+| `parent_id` | ID of the parent item             |
