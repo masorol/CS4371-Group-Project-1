@@ -1,126 +1,167 @@
-# CS4371-Group-Project-1
+##  Part 1 Real-Time Named Entity Recognition (NER) Pipeline: Kafka (topic1) -> PySpark -> SpaCy NER -> Entity Counting -> Kafka (topic2)
 
-## Setup Instructions
-### 1. Clone repository
+## Preliminary Steps (for running Spark outside Docker)
 
-### 2. Navigate to project
-cd CS4371-Group-Project-1
+### Create and activate virtual environment
 
-### 3. Create virtual environment
+```bash
 python -m venv .venv
+```
 
-### 4. Activate
 #### Windows
+
+```bash
 .venv\Scripts\activate
+```
 
 #### Mac/Linux
+
+```bash
 source .venv/bin/activate
+```
 
-### 5. Install dependencies
+### Install dependencies
+
+```bash
 pip install -r requirements.txt
+```
 
-### 6. Download spaCy English language model
+### Download spaCy English language model
+
+```bash
 python -m spacy download en_core_web_sm
+```
 
-### Note: change the Kafka bootstrap server depending on where the Spark application runs
-#### If running Spark inside a Docker container - use the Kafka service name and internal Docker port in spark_ner_streaming.py:
-KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092")
+## Kafka Bootstrap Server
 
-#### If running Spark outside Docker (directly on your local computer) - change the Kafka bootstrap server in spark_ner_streaming.py to:
-KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:29092")
+In `spark_ner_streaming.py`, use the address appropriate to where Spark runs:
 
-## Steps to Run the Spark Application Inside a Docker Container (Recommended)
+- **Inside Docker:** `KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092")`
+- **Outside Docker (on your Mac/PC):** `KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")`
 
-### Docker Commands
+The addresses must match the Kafka listeners configured in `docker-compose.yml`. `kafka` is the Compose service name; `hn-kafka` is the container name used in the commands below.
+
+Run these commands from the project directory containing `docker-compose.yml`. Use **Terminal 1** for setup, publishing, and the live collector. Open **Terminal 2** and **Terminal 3** in step 6 to monitor the Kafka topics.
+Steps 2, 6, 7, and 8 are from data-collection.md.
+
+### 1. Stop and remove any running containers for a clean run
+
+```bash
+docker compose down -v --remove-orphans
+```
+
+### 2. Start Kafka and create topic1
+
+```bash
+docker compose up -d
+docker exec hn-kafka /opt/kafka/bin/kafka-topics.sh \
+  --create \
+  --topic topic1 \
+  --bootstrap-server localhost:9092 \
+  --partitions 3 \
+  --replication-factor 1
+```
+
+### 3. Create topic2
+
+```bash
+docker exec hn-kafka /opt/kafka/bin/kafka-topics.sh \
+  --create \
+  --topic topic2 \
+  --bootstrap-server localhost:9092 \
+  --partitions 3 \
+  --replication-factor 1
+```
+
+### 4. Build and start the Spark container
+
+```bash
+docker compose up --build -d spark
+```
+
+### 5. Check whether Kafka and Spark are running
+
+```bash
+docker compose ps
+```
+
+### 6. Collect and check the dataset (about 1,500 records)
+
+```bash
+python scripts/collect_historical.py
+python scripts/validate_dataset.py
+```
+
+### 7. Test Kafka (by reading messages in 2 terminals)
+
+Open the 2 consumer terminals **before step 8**, so you can see the data arrive when you publish it. These commands continue listening until you press Ctrl+C.
+
+**Terminal 2 — Consume raw messages from topic1:**
+
+```bash
+docker exec -it hn-kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --topic topic1 \
+  --from-beginning \
+  --bootstrap-server localhost:9092
+```
+
+**Terminal 3 - Read and display messages from topic2:**
+
+```bash
+docker exec -it hn-kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --topic topic2 \
+  --from-beginning \
+  --bootstrap-server localhost:9092
+```
+
+### 8. Send the dataset to topic1 (Note: be sure to run this only once or topic1 gets duplicates)
+
+Run this in **Terminal 1**:
+
+```bash
+python scripts/publish_historical.py
+```
+
+You should see incoming JSON messages in **Terminal 2** and, after Spark processes them, entity-count JSON in **Terminal 3**.
+
+### 9. Run the live collector (needs the historical file from step 6)
+
+Run this in **Terminal 1**:
+
+```bash
+python scripts/live_collector.py
+```
+
+If the Spark application is working correctly, you should see named entity counts in **Terminal 3** similar to:
+
+```json
+{"entity":"Illiac IV","count":1}
+{"entity":"SYSOP","count":1}
+{"entity":"Sweden","count":1}
+{"entity":"IPO","count":4}
+```
+
+This confirms that the Spark application is consuming messages from topic1, processing named entities, and publishing the results to topic2.
+
+## Other Helpful Docker Commands
+
+### Check Docker and Docker Compose versions
+
+```bash
 docker --version
 docker compose version
+```
 
-### Delete the container and remove everything for a Clean Run
-docker compose down
-docker compose down -v --remove-orphans
+### View startup logs
 
-### Build the Spark image
-docker compose build --no-cache spark
-
-### Start Kafka
-docker compose up -d
-
-### Check Kafka is running
-docker compose ps
-
-### To view its startup logs
+```bash
 docker compose logs -f kafka
-
-### Create topic 1
-docker exec hn-kafka /opt/kafka/bin/kafka-topics.sh \
-  --create \
-  --topic topic1 \
-  --bootstrap-server localhost:9092 \
-  --partitions 3 \
-  --replication-factor 1
-
-### Create topic 2
-docker exec hn-kafka /opt/kafka/bin/kafka-topics.sh \
-  --create \
-  --topic topic2 \
-  --bootstrap-server localhost:9092 \
-  --partitions 3 \
-  --replication-factor 1
-
-### Verify the topic exists
-docker exec hn-kafka /opt/kafka/bin/kafka-topics.sh \
-  --list \
-  --bootstrap-server localhost:9092
-
-### Start Spark
-docker compose up -d spark
-
-### If we need to Build and Start the Spark container
-### docker compose up --build -d spark
-
-### Open 2 more Terminals: one to Publish and another to Read the message
-
-### Test Kafka (by sending a message)
-#### Terminal 1 — Publish a message
-docker exec -it hn-kafka /opt/kafka/bin/kafka-console-producer.sh \
-  --topic topic1 \
-  --bootstrap-server localhost:9092
-
-### Example message
-{"id":"50428106","source":"hackernews","type":"story","author":"boninferizi","text":"An SEO page checker that shows its scoring and admits its limits.Microsoft, Tesla, Google, Apple","timestamp":"2026-11-09T16:49:19Z","url":"https://news.ycombinator.com/item?id=50428106","parent_id":null}
-
-### Read the message - open another Terminal window and run:
-#### Terminal 2 — Consume messages from topic1
-docker exec -it hn-kafka /opt/kafka/bin/kafka-console-consumer.sh \
-  --topic topic1 \
-  --from-beginning \
-  --bootstrap-server localhost:9092
-
-### Check if Spark is running
-docker compose ps
-
-### To view its startup logs:
 docker compose logs -f spark
 docker compose logs -f spark | grep "hn-ner"
+```
 
-### Read the message - open another Terminal window and look at Topic 2:
-docker exec -it hn-kafka /opt/kafka/bin/kafka-console-consumer.sh \
-  --topic topic2 \
-  --from-beginning \
-  --bootstrap-server localhost:9092
+### Check if Kafka/Spark are running
 
-### If the Spark application is working correctly, you should see named entity counts similar to:
-{"entity":"Microsoft","count":1}
-{"entity":"Tesla","count":1}
-{"entity":"Google","count":1}
-{"entity":"Apple","count":1}
-
-#### The actual entities and counts depend on spaCy's recognition and previously processed messages.
-#### This confirms that the Spark application is consuming messages from topic1, processing named entities, and publishing results to topic2.
-
-### Delete the container
-docker compose down
-
-### Delete the container and remove everything for a Clean Run
-docker compose down
-docker compose down -v --remove-orphans
+```bash
+docker compose ps
+```
