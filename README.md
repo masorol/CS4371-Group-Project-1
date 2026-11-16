@@ -49,6 +49,10 @@ pip install -r requirements-spark.txt
 
 For details on how to run the Hacker News to Kafka pipeline (starting Kafka, creating `topic1`, collecting the dataset, publishing to Kafka, and running the live collector), see [docs/data-collection.md](docs/data-collection.md).
 
+## Running the Spark Streaming and Named Entity Recognition (NER) Pipeline
+
+For details on how to run the PySpark Structured Streaming and spaCy NER pipeline (building and starting the Spark Docker container, consuming Hacker News messages from `topic1`, extracting named entities, maintaining cumulative entity counts, publishing results to `topic2`, and verifying the output), see [docs/spark-ner.md](docs/spark-ner.md).
+
 ## Project Overview
 
 This project is split into two parts.
