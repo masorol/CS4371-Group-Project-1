@@ -1,6 +1,10 @@
-## Part 1 Data Collection Pipeline: Hacker News -> Kafka
+# Data Collection and Kafka (Hacker News -> topic1)
 
-### 1. Start Kafka and create the topics
+Run all commands from the project root, with the virtual environment activated and Docker Desktop running.
+
+## Hacker News -> Kafka pipeline
+
+### 1. Start Kafka and create topic1
 
 ```
 docker compose up -d
@@ -40,3 +44,5 @@ python -m pytest
 
 JSON with keys `id, source, type, author, text, timestamp, url, parent_id`.
 The key of each Kafka message is the HN item id.
+
+Optional: copy `.env.example` to `.env` to change the defaults
