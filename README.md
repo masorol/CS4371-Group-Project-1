@@ -45,6 +45,14 @@ pip install -r requirements-spark.txt
 3. Set the `HADOOP_HOME` environment variable to `C:\hadoop`.
 4. Add `C:\hadoop\bin` to `PATH`.
 
+## Running the Data Collection Pipeline
+
+For details on how to run the Hacker News to Kafka pipeline (starting Kafka, creating `topic1`, collecting the dataset, publishing to Kafka, and running the live collector), see [docs/data-collection.md](docs/data-collection.md).
+
+## Running the Spark Streaming and Named Entity Recognition (NER) Pipeline
+
+For details on how to run the PySpark Structured Streaming and spaCy NER pipeline (building and starting the Spark Docker container, consuming Hacker News messages from `topic1`, extracting named entities, maintaining cumulative entity counts, publishing results to `topic2`, and verifying the output), see [docs/spark-ner.md](docs/spark-ner.md).
+
 ## Project Overview
 
 This project is split into two parts.
@@ -67,12 +75,11 @@ A **Spark MLlib** text classification pipeline trained on the **AG News** datase
 
 Owns the input pipeline that both project parts depend on.
 
-- Set up Kafka and create `topic1` and `topic2`.
-- Select a real-time source, preferably Hacker News or Bluesky because neither requires an API key.
-- Write a Python collector that continuously retrieves text and publishes it to `topic1`.
+- Set up Kafka and create `topic1`.
+- Write a Python collector that continuously retrieves text from Hacker News and publishes it to `topic1`.
 - Save messages to a local file as a backup for Part 2.
 - Verify at least 1,000 messages are collected.
-- Provide instructions for starting the producer and Kafka.
+- Provide instructions for starting the producer and Kafka (see [docs/data-collection.md](docs/data-collection.md)).
 
 **Deliverable:** Working producer script, Kafka configuration and a dataset of at least 1,000 messages.
 
@@ -118,7 +125,7 @@ Owns Part 2, which can begin independently using AG News.
 
 ## Data Contract
 
-Kafka details set by Person 1:
+Kafka details:
 
 | Setting        | Value               |
 | -------------- | ------------------- |

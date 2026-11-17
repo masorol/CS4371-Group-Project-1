@@ -50,13 +50,13 @@ services:
 
   # ---- Person 2: Spark Structured Streaming + spaCy NER ----
   spark:
-    build: ./spark
+    build: ./spark-ner
     container_name: spark-ner
     depends_on:
       kafka:
         condition: service_healthy
     volumes:
-      - ./spark:/app
+      - ./spark-ner:/app
       - spark_checkpoints:/checkpoints
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
