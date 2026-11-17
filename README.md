@@ -53,6 +53,37 @@ For details on how to run the Hacker News to Kafka pipeline (starting Kafka, cre
 
 For details on how to run the PySpark Structured Streaming and spaCy NER pipeline (building and starting the Spark Docker container, consuming Hacker News messages from `topic1`, extracting named entities, maintaining cumulative entity counts, publishing results to `topic2`, and verifying the output), see [docs/spark-ner.md](docs/spark-ner.md).
 
+## Running Part 2: Text Classification
+
+### Train the model
+
+Open JupyterLab from the repo root:
+
+```
+jupyter lab
+```
+
+Then run `notebooks/01_agnews_training.ipynb` top to bottom. It will download AG News, train the classifier, and save the model to `models/agnews_lr_pipeline`. This takes about 10–15 minutes due to the two-stage hyperparameter search.
+
+### Run batch predictions on Hacker News data
+
+Run `notebooks/02_hn_predictions.ipynb` top to bottom. It loads the saved model, reads `data/hn_historical.jsonl`, cleans the messages, predicts a class for each one, and saves results to `data/hn_predictions.parquet`. It also evaluates predictions against 50 manually labeled messages and prints accuracy and F1.
+
+This notebook requires `data/hn_historical.jsonl` from Person 1's collector.
+
+### Live classification (streaming)
+
+`spark/classify_stream.py` is designed for integration into Person 2's `spark_ner_streaming.py`. Configure it with environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `KAFKA_BOOTSTRAP_SERVERS` | `kafka:29092` | Kafka broker address |
+| `INPUT_TOPIC` | `topic1` | Topic to read messages from |
+| `OUTPUT_TOPIC` | `topic2` | Topic to publish class counts to |
+| `MODEL_PATH` | *(required)* | Path to saved PipelineModel |
+| `CHECKPOINT_LOCATION` | *(required)* | Spark checkpoint directory |
+| `TRIGGER_INTERVAL` | `10 seconds` | Processing interval |
+
 ## Project Overview
 
 This project is split into two parts.
